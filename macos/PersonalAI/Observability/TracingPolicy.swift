@@ -1,0 +1,116 @@
+import Foundation
+
+enum TracingPolicy {
+    static func rootInputs(userMessage: String) -> [String: JSONValue] {
+        [
+            "input_type": .string("user_message"),
+            "character_count": .number(Double(userMessage.count))
+        ]
+    }
+
+    static func rootMetadata(conversationID: UUID?) -> [String: JSONValue] {
+        var metadata: [String: JSONValue] = [
+            "provider": .string("nebius"),
+            "platform": .string("macOS"),
+            "application": .string("PersonalAI")
+        ]
+        if let conversationID { metadata["conversation_id"] = .string(conversationID.uuidString) }
+        return metadata
+    }
+
+    static func modelInputs(messageCount: Int, toolCount: Int) -> [String: JSONValue] {
+        [
+            "operation": .string("chat"),
+            "message_count": .number(Double(messageCount)),
+            "available_tool_count": .number(Double(toolCount))
+        ]
+    }
+
+    static func modelMetadata(modelID: String, iteration: Int) -> [String: JSONValue] {
+        [
+            "provider": .string("nebius"),
+            "model": .string(modelID),
+            "operation": .string("chat"),
+            "iteration": .number(Double(iteration))
+        ]
+    }
+
+    static func modelOutput(response: ChatCompletionResponse) -> [String: JSONValue] {
+        var output: [String: JSONValue] = [
+            "choice_count": .number(Double(response.choices.count))
+        ]
+        if let content = response.choices.first?.message.content {
+            output["response_type"] = .string("assistant")
+            output["character_count"] = .number(Double(content.count))
+        } else if response.choices.first?.message.toolCalls?.isEmpty == false {
+            output["response_type"] = .string("tool_call")
+            output["tool_call_count"] = .number(Double(response.choices.first?.message.toolCalls?.count ?? 0))
+        }
+        if let usage = response.usage {
+            if let prompt = usage.promptTokens { output["prompt_tokens"] = .number(Double(prompt)) }
+            if let completion = usage.completionTokens { output["completion_tokens"] = .number(Double(completion)) }
+            if let total = usage.totalTokens { output["total_tokens"] = .number(Double(total)) }
+        }
+        return output
+    }
+
+    static func toolInputs(name: String, arguments: JSONValue?) -> [String: JSONValue] {
+        var input: [String: JSONValue] = ["tool_name": .string(name)]
+        if case .object(let object) = arguments {
+            input["argument_keys"] = .array(object.keys.sorted().map(JSONValue.string))
+            if case .string(let path) = object["path"] {
+                input["filename"] = .string(URL(fileURLWithPath: path).lastPathComponent)
+            }
+        }
+        return input
+    }
+
+    static func toolOutput(name: String, result: JSONValue) -> [String: JSONValue] {
+        guard case .object(let object) = result else { return ["success": .bool(true)] }
+        var output: [String: JSONValue] = ["success": .bool(object["error"] == nil)]
+        switch name {
+        case "search_files":
+            if case .array(let results) = object["results"] {
+                output["result_count"] = .number(Double(results.count))
+            }
+            if let limited = object["limitReached"] { output["limit_reached"] = limited }
+        case "list_directory":
+            if case .array(let entries) = object["entries"] {
+                output["result_count"] = .number(Double(entries.count))
+            }
+        case "read_file":
+            if let bytes = object["returnedBytes"] { output["returned_bytes"] = bytes }
+            if let truncated = object["truncated"] { output["truncated"] = truncated }
+        case "get_file_info":
+            if let bytes = object["sizeBytes"] { output["size_bytes"] = bytes }
+        default:
+            break
+        }
+        return output
+    }
+
+    static func rootOutput(response: String, modelID: String?) -> [String: JSONValue] {
+        var output: [String: JSONValue] = [
+            "response_type": .string("assistant"),
+            "character_count": .number(Double(response.count))
+        ]
+        if let modelID { output["model"] = .string(modelID) }
+        return output
+    }
+
+    static func errorCategory(_ error: Error) -> String {
+        switch error {
+        case let access as FileAccessError:
+            switch access {
+            case .accessDenied, .permissionDenied: return "permission_denied"
+            case .malformedArguments: return "invalid_arguments"
+            default: return "tool_error"
+            }
+        case AgentRuntimeError.malformedArguments: return "invalid_arguments"
+        case AgentRuntimeError.unknownTool: return "unknown_tool"
+        case is URLError: return "network_error"
+        case is NebiusClientError: return "model_error"
+        default: return "unexpected_error"
+        }
+    }
+}

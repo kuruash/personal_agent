@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+Secrets.xcconfig
+*.secrets.xcconfig
+
+# Logs
+*.log
+logs/
+
+# SQLite runtime databases
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Local conversation persistence and migration backups
+conversations.json
+conversations.migrated.json
+conversations.migrated-*.json
+conversations.corrupt-*.json
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.tmp/
+tmp/

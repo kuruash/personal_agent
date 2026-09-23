@@ -19,16 +19,21 @@ private struct DatabaseHarness {
         let database = try DatabaseManager(databaseURL: databaseURL)
 
         let version = try database.read { try $0.query("PRAGMA user_version;").first?.integer("user_version") }
-        try require(version == 1, "Fresh database did not migrate to V1")
+        try require(version == 2, "Fresh database did not migrate through V2")
         let tables = try database.read {
             try $0.query("SELECT name FROM sqlite_master WHERE type = 'table';").compactMap { $0.text("name") }
         }
-        for table in ["profile", "profile_links", "documents", "conversations", "messages", "agent_messages"] {
+        for table in [
+            "profile", "profile_links", "documents", "conversations", "messages", "agent_messages",
+            "profile_identity", "profile_contact", "profile_address", "profile_education",
+            "profile_experience", "profile_skills", "profile_projects", "profile_certifications",
+            "profile_career_preferences", "profile_work_authorization", "profile_application_answers"
+        ] {
             try require(tables.contains(table), "Missing table \(table)")
         }
         let foreignKeys = try database.read { try $0.query("PRAGMA foreign_keys;").first?.integer("foreign_keys") }
         try require(foreignKeys == 1, "Foreign keys were not enabled")
-        print("PASS initialization: V1 schema and foreign keys enabled")
+        print("PASS initialization: V2 schema and foreign keys enabled")
 
         let profileRepository = ProfileRepository(database: database)
         let baseDate = Date(timeIntervalSince1970: 1_700_000_000.125)
@@ -54,7 +59,7 @@ private struct DatabaseHarness {
         } catch let error as TestFailure { throw error } catch { }
         print("PASS profile: save, load, update, and singleton constraint")
 
-        let link = ProfileLink(id: UUID(), label: "Portfolio", url: "https://example.invalid", createdAt: baseDate, updatedAt: baseDate)
+        let link = ProfileLink(id: "example_portfolio", label: "Portfolio", url: "https://example.invalid", createdAt: baseDate, updatedAt: baseDate)
         try profileRepository.saveLink(link)
         try require(try profileRepository.loadLinks() == [link], "Profile link did not round-trip")
         var updatedLink = link
@@ -67,7 +72,7 @@ private struct DatabaseHarness {
 
         let documentRepository = DocumentRepository(database: database)
         let document = DocumentMetadata(
-            id: UUID(), type: "resume", name: "Test Resume", filePath: nil,
+            id: "example_resume", type: "resume", name: "Test Resume", filePath: nil,
             mimeType: "text/plain", isPrimary: true, createdAt: baseDate, updatedAt: baseDate
         )
         try documentRepository.saveDocumentMetadata(document)
@@ -130,7 +135,7 @@ private struct DatabaseHarness {
         let reopenedRepository = ConversationRepository(database: reopened)
         try require(try reopenedRepository.loadConversation(id: newer.id) != nil, "Data did not survive reopen")
         let reopenedVersion = try reopened.read { try $0.query("PRAGMA user_version;").first?.integer("user_version") }
-        try require(reopenedVersion == 1, "Second migration changed schema version")
+        try require(reopenedVersion == 2, "Second migration changed schema version")
         try require(try reopenedRepository.loadConversations().count == 1, "Second migration duplicated data")
         print("PASS persistence/migrations: reopen retained data and migration remained idempotent")
 

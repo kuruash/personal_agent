@@ -11,7 +11,7 @@ struct UserProfile: Equatable, Sendable {
 }
 
 struct ProfileLink: Identifiable, Equatable, Sendable {
-    let id: UUID
+    let id: String
     var label: String
     var url: String
     let createdAt: Date

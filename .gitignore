@@ -41,6 +41,10 @@ conversations.migrated.json
 conversations.migrated-*.json
 conversations.corrupt-*.json
 
+# Local Personal AI profile data
+macos/LocalData/
+*.profile.local.json
+
 # Temporary files
 *.tmp
 *.temp

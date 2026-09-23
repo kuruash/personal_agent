@@ -1,0 +1,118 @@
+{
+  "identity": {
+    "full_name": "Example User",
+    "first_name": "Example",
+    "last_name": "User",
+    "preferred_name": "Example",
+    "legal_name": "Example User"
+  },
+  "contact": {
+    "primary_email": "example@example.invalid",
+    "alternate_email": null,
+    "primary_phone": "+1-555-0100"
+  },
+  "address": {
+    "street": "100 Example Street",
+    "city": "Example City",
+    "state": "Example State",
+    "postal_code": "00000",
+    "country": "United States"
+  },
+  "links": [
+    { "id": "portfolio", "label": "Portfolio", "url": "https://example.invalid" }
+  ],
+  "education": [
+    {
+      "id": "example_degree",
+      "institution": "Example University",
+      "degree": "Bachelor of Science",
+      "major": "Computer Science",
+      "start_date": "2020-08",
+      "graduation_date": "2024-05",
+      "gpa": null,
+      "coursework": ["Data Structures"],
+      "activities": [],
+      "achievements": []
+    }
+  ],
+  "experience": [
+    {
+      "id": "example_company_engineer",
+      "company": "Example Company",
+      "title": "Software Engineer",
+      "employment_type": "Full-time",
+      "location": "Remote",
+      "start_date": "2024-06",
+      "end_date": null,
+      "is_current": true,
+      "achievements": ["Built a fictional example service."],
+      "technologies": ["Swift"]
+    }
+  ],
+  "skills": [
+    { "category": "Programming Languages", "skills": ["Swift", "Python"] }
+  ],
+  "projects": [
+    {
+      "id": "example_project",
+      "name": "Example Project",
+      "technologies": ["SwiftUI"],
+      "repository_url": null,
+      "description": null,
+      "highlights": []
+    }
+  ],
+  "certifications": [
+    {
+      "id": "example_certificate",
+      "name": "Example Certificate",
+      "issuer": "Example Organization",
+      "type": "course_certificate",
+      "issue_date": null,
+      "expiration_date": null,
+      "credential_id": null,
+      "credential_url": null,
+      "unresolved": false
+    }
+  ],
+  "career_preferences": {
+    "target_roles": ["Software Engineer"],
+    "preferred_locations": ["Remote"],
+    "remote": true,
+    "hybrid": false,
+    "onsite": false,
+    "willing_to_relocate": false,
+    "preferred_industries": [],
+    "earliest_start_date": null
+  },
+  "work_authorization": {
+    "country": "United States",
+    "current_status": null,
+    "authorization_type": null,
+    "authorization_start_date": null,
+    "authorization_expiration_date": null,
+    "currently_required_sponsorship": false,
+    "future_required_sponsorship": false,
+    "future_sponsorship_type": null
+  },
+  "application_answers": {
+    "authorized_to_work_in_us": true,
+    "requires_current_sponsorship": false,
+    "requires_future_sponsorship": false,
+    "willing_to_relocate": false,
+    "willing_to_work_onsite": false,
+    "willing_to_work_hybrid": false,
+    "willing_to_work_remote": true
+  },
+  "documents": [
+    {
+      "id": "example_resume",
+      "type": "resume",
+      "label": "Example Resume",
+      "filename": null,
+      "path": null,
+      "preferred": true,
+      "last_updated": null
+    }
+  ]
+}

@@ -61,6 +61,13 @@ enum TracingPolicy {
             if case .string(let path) = object["path"] {
                 input["filename"] = .string(URL(fileURLWithPath: path).lastPathComponent)
             }
+            if name == "get_profile_section", case .string(let section) = object["section"],
+               ProfileSection(rawValue: section) != nil {
+                input["requested_section"] = .string(section)
+            }
+            if name == "search_profile", case .string(let query) = object["query"] {
+                input["query_character_count"] = .number(Double(query.count))
+            }
         }
         return input
     }
@@ -83,6 +90,16 @@ enum TracingPolicy {
             if let truncated = object["truncated"] { output["truncated"] = truncated }
         case "get_file_info":
             if let bytes = object["sizeBytes"] { output["size_bytes"] = bytes }
+        case "get_profile_index":
+            if case .array(let sections) = object["available_sections"] {
+                output["result_count"] = .number(Double(sections.count))
+            }
+        case "search_profile":
+            if case .array(let results) = object["results"] {
+                output["result_count"] = .number(Double(results.count))
+            }
+        case "get_profile_section":
+            output["section_returned"] = .bool(object["error"] == nil)
         default:
             break
         }

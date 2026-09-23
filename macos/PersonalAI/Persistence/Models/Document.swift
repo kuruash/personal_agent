@@ -1,7 +1,7 @@
 import Foundation
 
 struct DocumentMetadata: Identifiable, Equatable, Sendable {
-    let id: UUID
+    let id: String
     var type: String
     var name: String
     var filePath: String?

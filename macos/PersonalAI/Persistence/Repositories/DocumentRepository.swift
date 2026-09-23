@@ -11,9 +11,9 @@ final class DocumentRepository {
         }
     }
 
-    func getDocument(id: UUID) throws -> DocumentMetadata? {
+    func getDocument(id: String) throws -> DocumentMetadata? {
         try database.read { connection in
-            try connection.query("SELECT * FROM documents WHERE id = ?;", bindings: [.text(id.uuidString)])
+            try connection.query("SELECT * FROM documents WHERE id = ?;", bindings: [.text(id)])
                 .first.map(decode)
         }
     }
@@ -27,7 +27,7 @@ final class DocumentRepository {
                     file_path=excluded.file_path, mime_type=excluded.mime_type,
                     is_primary=excluded.is_primary, updated_at=excluded.updated_at;
                 """, bindings: [
-                    .text(document.id.uuidString), .text(document.type), .text(document.name),
+                    .text(document.id), .text(document.type), .text(document.name),
                     document.filePath.sqliteValue, document.mimeType.sqliteValue,
                     .integer(document.isPrimary ? 1 : 0),
                     .text(RepositoryDate.encode(document.createdAt)), .text(RepositoryDate.encode(document.updatedAt))
@@ -35,18 +35,15 @@ final class DocumentRepository {
         }
     }
 
-    func deleteDocumentMetadata(id: UUID) throws {
+    func deleteDocumentMetadata(id: String) throws {
         try database.read { connection in
-            try connection.execute("DELETE FROM documents WHERE id = ?;", bindings: [.text(id.uuidString)])
+            try connection.execute("DELETE FROM documents WHERE id = ?;", bindings: [.text(id)])
         }
     }
 
     private func decode(_ row: SQLiteRow) throws -> DocumentMetadata {
-        guard let id = UUID(uuidString: try row.requiredText("id")) else {
-            throw DatabaseError.decodingFailed("Invalid document identifier.")
-        }
         return DocumentMetadata(
-            id: id, type: try row.requiredText("type"), name: try row.requiredText("name"),
+            id: try row.requiredText("id"), type: try row.requiredText("type"), name: try row.requiredText("name"),
             filePath: row.text("file_path"), mimeType: row.text("mime_type"),
             isPrimary: row.integer("is_primary") == 1,
             createdAt: try RepositoryDate.decode(row.requiredText("created_at")),

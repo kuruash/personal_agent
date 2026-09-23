@@ -12,6 +12,7 @@ final class ConversationStore: ObservableObject {
     )
 
     let databaseURL: URL?
+    let profileStore: ProfileStore?
     private let repository: ConversationRepository?
     private let fileManager: FileManager
 
@@ -21,6 +22,8 @@ final class ConversationStore: ObservableObject {
         fileManager: FileManager = .default
     ) {
         repository = ConversationRepository(database: database)
+        let profileRepository = ProfileRepository(database: database)
+        profileStore = ProfileStore(repository: profileRepository)
         databaseURL = database.databaseURL
         self.fileManager = fileManager
         let migrationError = migrateLegacyJSONIfNeeded(
@@ -41,6 +44,7 @@ final class ConversationStore: ObservableObject {
 
     private init(initializationError: Error, fileManager: FileManager) {
         repository = nil
+        profileStore = nil
         databaseURL = nil
         self.fileManager = fileManager
         lastErrorDescription = "Conversation storage could not be initialized."

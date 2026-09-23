@@ -57,6 +57,7 @@ actor AgentRuntime {
     private static let systemPrompt = """
         You are Personal AI. Use an available tool whenever the user explicitly asks you to use it. \
         Never invent a tool result. After a tool responds, answer using only the returned data. \
+        Use Profile tools when the user asks about their personal, education, professional, career, authorization, or document information. \
         Do not reveal hidden reasoning or chain-of-thought.
         """
 
@@ -76,18 +77,21 @@ actor AgentRuntime {
         maximumIterations: Int = 8,
         restoredHistory: [ChatMessage] = [],
         tracer: any AgentTracer = AgentTracerFactory.make(),
-        conversationID: UUID? = nil
+        conversationID: UUID? = nil,
+        profileStore: ProfileStore? = nil
     ) {
         self.client = client
         self.tracer = tracer
         self.conversationID = conversationID
-        let registeredTools = tools ?? [
-            TestTool(),
-            ListDirectoryTool(),
-            SearchFilesTool(),
-            GetFileInfoTool(),
-            ReadFileTool()
+        var defaultTools: [any AgentTool] = [
+            TestTool(), ListDirectoryTool(), SearchFilesTool(), GetFileInfoTool(), ReadFileTool()
         ]
+        if let profileStore {
+            defaultTools.append(GetProfileIndexTool(store: profileStore))
+            defaultTools.append(GetProfileSectionTool(store: profileStore))
+            defaultTools.append(SearchProfileTool(store: profileStore))
+        }
+        let registeredTools = tools ?? defaultTools
         self.toolsByName = Dictionary(uniqueKeysWithValues: registeredTools.map { ($0.name, $0) })
         self.maximumIterations = maximumIterations
         self.history = [ChatMessage(role: "system", content: Self.systemPrompt)] +

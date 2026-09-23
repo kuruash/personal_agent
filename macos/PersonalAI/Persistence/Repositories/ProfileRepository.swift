@@ -1,7 +1,7 @@
 import Foundation
 
 final class ProfileRepository {
-    private let database: DatabaseManager
+    let database: DatabaseManager
 
     init(database: DatabaseManager) { self.database = database }
 
@@ -36,11 +36,8 @@ final class ProfileRepository {
     func loadLinks() throws -> [ProfileLink] {
         try database.read { connection in
             try connection.query("SELECT * FROM profile_links ORDER BY created_at ASC;").map { row in
-                guard let id = UUID(uuidString: try row.requiredText("id")) else {
-                    throw DatabaseError.decodingFailed("Invalid profile link identifier.")
-                }
                 return ProfileLink(
-                    id: id, label: try row.requiredText("label"), url: try row.requiredText("url"),
+                    id: try row.requiredText("id"), label: try row.requiredText("label"), url: try row.requiredText("url"),
                     createdAt: try RepositoryDate.decode(row.requiredText("created_at")),
                     updatedAt: try RepositoryDate.decode(row.requiredText("updated_at"))
                 )
@@ -54,15 +51,15 @@ final class ProfileRepository {
                 INSERT INTO profile_links (id, label, url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET label=excluded.label, url=excluded.url, updated_at=excluded.updated_at;
                 """, bindings: [
-                    .text(link.id.uuidString), .text(link.label), .text(link.url),
+                    .text(link.id), .text(link.label), .text(link.url),
                     .text(RepositoryDate.encode(link.createdAt)), .text(RepositoryDate.encode(link.updatedAt))
                 ])
         }
     }
 
-    func deleteLink(id: UUID) throws {
+    func deleteLink(id: String) throws {
         try database.read { connection in
-            try connection.execute("DELETE FROM profile_links WHERE id = ?;", bindings: [.text(id.uuidString)])
+            try connection.execute("DELETE FROM profile_links WHERE id = ?;", bindings: [.text(id)])
         }
     }
 }

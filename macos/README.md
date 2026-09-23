@@ -41,6 +41,7 @@ Implemented:
 - Explicit, persistent folder approval using native macOS folder selection and security-scoped bookmarks.
 - Read-only filesystem policy with canonical path validation and protection against traversal and symbolic-link escapes.
 - Local SQLite conversation persistence, Recent conversations, rename/delete, and restored model protocol context.
+- Structured local Personal Profile storage with on-demand agent retrieval and deterministic search.
 - Optional LangSmith execution tracing with privacy-focused metadata and failure isolation.
 
 Not implemented in the current release:
@@ -83,6 +84,31 @@ User message
 
 For example, a request to explain a project README can cause `search_files` followed by `read_file`. The UI displays only the user and final assistant messages; internal tool protocol messages are retained separately for valid conversation continuation.
 
+## Personal Profile
+
+Profile V1 stores explicit, user-controlled facts in the same application-owned SQLite database used by the persistence layer. It keeps Profile separate from future Memory functionality: Profile is structured information supplied by the user, while Memory would represent learned or evolving context and is not implemented.
+
+The agent retrieves profile information only when needed through three read-only tools:
+
+- `get_profile_index` lists available sections without returning profile values.
+- `get_profile_section` retrieves one validated section.
+- `search_profile` performs bounded, case-insensitive structured search with record provenance.
+
+The complete profile is never injected into every model prompt. Profile tool results are returned to Nemotron only for relevant requests. LangSmith receives tool names, requested section names, query lengths, result counts, timing, and success state—not profile values or raw tool results.
+
+### Local profile import
+
+Real profile data must never be committed. Copy the fictional schema example:
+
+```bash
+mkdir -p LocalData
+cp Examples/profile.example.json LocalData/profile.local.json
+```
+
+Edit `LocalData/profile.local.json` locally. The entire `LocalData` directory and `*.profile.local.json` files are ignored by Git. The development-only `Tests/Profile/LocalProfileImportHarness.swift` imports a specified local seed into a specified application database; it does not bundle the seed into the app or bypass filesystem policy at runtime.
+
+Imports validate required fields and stable IDs, then upsert records so repeated imports do not create duplicates. Document records contain metadata only; the importer does not discover files or fabricate paths.
+
 ## Privacy and Security
 
 - API credentials are read at runtime from environment variables and are never required in source files.
@@ -90,6 +116,7 @@ For example, a request to explain a project README can cause `search_files` foll
 - Filesystem access is read-only and restricted to folders explicitly approved by the user.
 - Path traversal and symbolic-link escapes are rejected by local policy code.
 - Conversation data is stored locally in the app's sandbox-compatible Application Support directory, not in an approved document folder.
+- Real profile seeds remain local and ignored; the repository contains only a fictional schema example.
 - Optional LangSmith tracing is disabled when its configuration is absent or false. Its default policy records execution metadata rather than raw document contents or raw tool results.
 - Tracing failures never fail the agent request.
 
@@ -150,9 +177,10 @@ macos/
 ├── PersonalAI/
 │   ├── App/                # App entry point, navigation, appearance
 │   ├── Features/Chat/      # Conversation models, state, and UI
+│   ├── Features/Profile/   # Profile models, import service, store
 │   ├── Features/Settings/  # Settings UI
 │   ├── Agent/              # Runtime, protocol models, Nebius provider
-│   ├── Tools/              # Tool contract and filesystem tools
+│   ├── Tools/              # Core, filesystem, and profile tools
 │   ├── Persistence/        # SQLite database, models, repositories
 │   ├── Observability/      # Optional LangSmith tracing
 │   ├── Shared/             # Reusable UI and theme primitives

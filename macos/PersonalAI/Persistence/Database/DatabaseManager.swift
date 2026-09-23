@@ -48,6 +48,9 @@ struct SQLiteRow {
     func integer(_ column: String) -> Int64? {
         text(column).flatMap(Int64.init)
     }
+    func double(_ column: String) -> Double? {
+        text(column).flatMap(Double.init)
+    }
 }
 
 final class SQLiteConnection {

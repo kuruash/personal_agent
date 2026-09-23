@@ -4,39 +4,57 @@ struct ChatMessageView: View {
     let message: ConversationMessage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.small) {
-            senderLabel
-
-            if message.role == .assistant {
-                MarkdownText(content: message.content)
-            } else {
-                Text(message.content)
-                    .font(.body)
-                    .lineSpacing(3)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(message.role == .user ? AppSpacing.medium : 0)
-        .background {
+        Group {
             if message.role == .user {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(AppColors.cardBackground)
+                userMessage
+            } else {
+                assistantMessage
             }
         }
         .textSelection(.enabled)
     }
 
-    private var senderLabel: some View {
-        HStack(spacing: AppSpacing.xSmall) {
-            if message.role == .assistant {
-                Image(systemName: "sparkle")
-                    .foregroundStyle(.tint)
-            }
+    private var userMessage: some View {
+        HStack {
+            Spacer(minLength: 72)
 
-            Text(message.role == .user ? "You" : "Personal AI")
-                .font(.system(size: 13, weight: .semibold))
+            Text(message.content)
+                .font(.body)
+                .lineSpacing(3)
+                .padding(.horizontal, AppSpacing.medium)
+                .padding(.vertical, AppSpacing.small)
+                .background(AppColors.userMessageBackground, in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(AppColors.subtleBorder, lineWidth: 1)
+                }
+                .frame(maxWidth: 560, alignment: .trailing)
         }
-        .foregroundStyle(message.role == .user ? .secondary : .primary)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .accessibilityLabel("You: \(message.content)")
+    }
+
+    private var assistantMessage: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            Label("Personal AI", systemImage: "sparkle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .labelStyle(PersonalAILabelStyle())
+
+            MarkdownText(content: message.content)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct PersonalAILabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: AppSpacing.xSmall) {
+            configuration.icon
+                .foregroundStyle(.tint)
+            configuration.title
+        }
     }
 }
 

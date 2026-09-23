@@ -20,27 +20,8 @@ struct EmptyChatView: View {
 
             ChatComposer(text: $prompt, isWorking: agent.isWorking, onSubmit: agent.submit)
 
-            suggestions
-                .padding(.top, AppSpacing.xLarge)
-
             Spacer(minLength: AppSpacing.xxLarge)
         }
-    }
-
-    private var suggestions: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.small) {
-            Text("SUGGESTED")
-                .font(AppTypography.sectionLabel)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, AppSpacing.xSmall)
-
-            ForEach(SuggestedPrompts.suggestions, id: \.self) { suggestion in
-                SuggestionCard(title: suggestion) {
-                    prompt = suggestion
-                }
-            }
-        }
-        .frame(maxWidth: 540)
     }
 
     private var greeting: String {

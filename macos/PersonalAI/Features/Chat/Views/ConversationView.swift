@@ -10,22 +10,24 @@ struct ConversationView: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: AppSpacing.xLarge) {
-                        ForEach(agent.messages) { message in
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(agent.messages.enumerated()), id: \.element.id) { index, message in
                             ChatMessageView(message: message)
                                 .id(message.id)
+                                .padding(.top, messageSpacing(at: index))
                         }
 
                         if agent.isWorking {
                             workingIndicator
                                 .id("agent-working")
+                                .padding(.top, AppSpacing.medium)
                         }
 
                         Color.clear
                             .frame(height: 1)
                             .id(bottomID)
                     }
-                    .frame(maxWidth: 780)
+                    .frame(maxWidth: 760)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, AppSpacing.xxLarge)
                     .padding(.vertical, AppSpacing.xLarge)
@@ -42,7 +44,7 @@ struct ConversationView: View {
             Divider()
 
             ChatComposer(text: $prompt, isWorking: agent.isWorking, onSubmit: agent.submit)
-                .frame(maxWidth: 720)
+                .frame(maxWidth: 760)
                 .padding(.horizontal, AppSpacing.xxLarge)
                 .padding(.vertical, AppSpacing.medium)
         }
@@ -92,6 +94,16 @@ struct ConversationView: View {
         case .failed:
             return "Unable to complete the request."
         }
+    }
+
+    private func messageSpacing(at index: Int) -> CGFloat {
+        guard index > 0 else { return 0 }
+        let message = agent.messages[index]
+        let previous = agent.messages[index - 1]
+        if message.role == .assistant, previous.role == .user {
+            return AppSpacing.medium
+        }
+        return AppSpacing.xLarge + AppSpacing.small
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {

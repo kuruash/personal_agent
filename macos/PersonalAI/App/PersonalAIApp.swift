@@ -15,7 +15,10 @@ struct PersonalAIApp: App {
             MainView(conversationStore: conversationStore)
                 .frame(minWidth: 820, minHeight: 560)
                 .environmentObject(appearanceStore)
-                .preferredColorScheme(appearanceStore.selection.colorScheme)
+                .background {
+                    WindowAppearanceController(appearance: appearanceStore.selection)
+                        .frame(width: 0, height: 0)
+                }
         }
         .defaultSize(width: 1080, height: 720)
         .windowResizability(.contentMinSize)

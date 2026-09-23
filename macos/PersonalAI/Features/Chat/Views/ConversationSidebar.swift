@@ -30,21 +30,20 @@ struct ConversationSidebar: View {
                         ForEach(conversations) { conversation in
                             ConversationRow(
                                 title: conversation.title,
-                                isSelected: selectedConversationID == conversation.id
+                                isSelected: selectedConversationID == conversation.id,
+                                onRename: { beginRename(conversation) },
+                                onDelete: { beginDelete(conversation) }
                             )
                                 .tag(conversation.id)
                                 .contextMenu {
                                     Button("Rename") {
-                                        renameConversationID = conversation.id
-                                        renameText = conversation.title
-                                        isRenaming = true
+                                        beginRename(conversation)
                                     }
 
                                     Divider()
 
                                     Button("Delete", role: .destructive) {
-                                        deleteConversationID = conversation.id
-                                        isConfirmingDelete = true
+                                        beginDelete(conversation)
                                     }
                                 }
                         }
@@ -81,7 +80,7 @@ struct ConversationSidebar: View {
             Text("Enter a new name for this conversation.")
         }
         .confirmationDialog(
-            "Delete Conversation?",
+            deleteConfirmationTitle,
             isPresented: $isConfirmingDelete,
             titleVisibility: .visible
         ) {
@@ -93,7 +92,7 @@ struct ConversationSidebar: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently delete this conversation and its messages.")
+            Text("This conversation and its messages will be permanently deleted.")
         }
     }
 
@@ -125,6 +124,25 @@ struct ConversationSidebar: View {
         .controlSize(.large)
         .padding(.horizontal, AppSpacing.medium)
         .padding(.bottom, AppSpacing.medium)
+    }
+
+    private var deleteConfirmationTitle: String {
+        guard let id = deleteConversationID,
+              let conversation = conversations.first(where: { $0.id == id }) else {
+            return "Delete Conversation?"
+        }
+        return "Delete “\(conversation.title)”?"
+    }
+
+    private func beginRename(_ conversation: Conversation) {
+        renameConversationID = conversation.id
+        renameText = conversation.title
+        isRenaming = true
+    }
+
+    private func beginDelete(_ conversation: Conversation) {
+        deleteConversationID = conversation.id
+        isConfirmingDelete = true
     }
 
     private func navigationRow(

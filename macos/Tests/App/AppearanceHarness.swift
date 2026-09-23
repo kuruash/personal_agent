@@ -13,6 +13,9 @@ private struct AppearanceHarness {
         try require(AppAppearance.system.colorScheme == nil, "System must not force a color scheme")
         try require(AppAppearance.light.colorScheme == .light, "Light mapping failed")
         try require(AppAppearance.dark.colorScheme == .dark, "Dark mapping failed")
+        try require(AppAppearance.system.windowAppearance == nil, "System must clear the window appearance override")
+        try require(AppAppearance.light.windowAppearance?.name == .aqua, "Light window appearance mapping failed")
+        try require(AppAppearance.dark.windowAppearance?.name == .darkAqua, "Dark window appearance mapping failed")
 
         let suiteName = "PersonalAI-AppearanceTests-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

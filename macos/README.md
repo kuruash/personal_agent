@@ -148,15 +148,17 @@ For normal use, launch from Xcode so the configured environment variables are av
 ```text
 macos/
 ├── PersonalAI/
-│   ├── AI/                 # Nebius client, agent runtime, protocol models
-│   ├── Database/           # SQLite connection and schema migrations
-│   ├── Models/             # UI and persistence models
+│   ├── App/                # App entry point, navigation, appearance
+│   ├── Features/Chat/      # Conversation models, state, and UI
+│   ├── Features/Settings/  # Settings UI
+│   ├── Agent/              # Runtime, protocol models, Nebius provider
+│   ├── Tools/              # Tool contract and filesystem tools
+│   ├── Persistence/        # SQLite database, models, repositories
 │   ├── Observability/      # Optional LangSmith tracing
-│   ├── Repositories/       # Conversation and metadata persistence
-│   ├── Tools/              # Registered local Swift tools
-│   └── Views/              # Native SwiftUI interface
+│   ├── Shared/             # Reusable UI and theme primitives
+│   └── Resources/          # Asset catalogs
 ├── PersonalAI.xcodeproj/
-└── Tests/                  # Deterministic test harnesses
+└── Tests/                  # Harnesses grouped by application domain
 ```
 
 ## Testing

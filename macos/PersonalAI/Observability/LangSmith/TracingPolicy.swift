@@ -68,6 +68,12 @@ enum TracingPolicy {
             if name == "search_profile", case .string(let query) = object["query"] {
                 input["query_character_count"] = .number(Double(query.count))
             }
+            if ["save_memory", "search_memory", "list_memories", "update_memory", "delete_memory"].contains(name) {
+                input["operation"] = .string(name)
+                if case .string(let type) = object["type"], MemoryType(rawValue: type) != nil {
+                    input["memory_type"] = .string(type)
+                }
+            }
         }
         return input
     }
@@ -80,7 +86,10 @@ enum TracingPolicy {
             if case .array(let results) = object["results"] {
                 output["result_count"] = .number(Double(results.count))
             }
+            if let candidates = object["candidateCount"] { output["candidate_count_before_limit"] = candidates }
+            if let returned = object["returnedCount"] { output["returned_count"] = returned }
             if let limited = object["limitReached"] { output["limit_reached"] = limited }
+            if let sortMode = object["sortMode"] { output["sort_mode"] = sortMode }
         case "list_directory":
             if case .array(let entries) = object["entries"] {
                 output["result_count"] = .number(Double(entries.count))
@@ -100,6 +109,18 @@ enum TracingPolicy {
             }
         case "get_profile_section":
             output["section_returned"] = .bool(object["error"] == nil)
+        case "search_memory", "list_memories":
+            if case .array(let results) = object["results"] {
+                output["result_count"] = .number(Double(results.count))
+            }
+        case "save_memory", "update_memory":
+            if let status = object["status"] { output["operation_status"] = status }
+            if case .object(let memory) = object["memory"],
+               case .string(let type) = memory["type"], MemoryType(rawValue: type) != nil {
+                output["memory_type"] = .string(type)
+            }
+        case "delete_memory":
+            output["deleted"] = .bool(object["error"] == nil)
         default:
             break
         }

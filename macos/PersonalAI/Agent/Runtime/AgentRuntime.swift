@@ -58,6 +58,9 @@ actor AgentRuntime {
         You are Personal AI. Use an available tool whenever the user explicitly asks you to use it. \
         Never invent a tool result. After a tool responds, answer using only the returned data. \
         Use Profile tools when the user asks about their personal, education, professional, career, authorization, or document information. \
+        Profile contains stable structured facts; Memory contains durable contextual preferences, goals, projects, decisions, and context. \
+        Use Memory tools only when relevant, and save memory only when the user clearly asks to remember, save, or store something. \
+        Never silently infer or persist sensitive information, never use Memory as conversation history, and never invent a missing memory. \
         Do not reveal hidden reasoning or chain-of-thought.
         """
 
@@ -78,7 +81,8 @@ actor AgentRuntime {
         restoredHistory: [ChatMessage] = [],
         tracer: any AgentTracer = AgentTracerFactory.make(),
         conversationID: UUID? = nil,
-        profileStore: ProfileStore? = nil
+        profileStore: ProfileStore? = nil,
+        memoryStore: MemoryStore? = nil
     ) {
         self.client = client
         self.tracer = tracer
@@ -90,6 +94,13 @@ actor AgentRuntime {
             defaultTools.append(GetProfileIndexTool(store: profileStore))
             defaultTools.append(GetProfileSectionTool(store: profileStore))
             defaultTools.append(SearchProfileTool(store: profileStore))
+        }
+        if let memoryStore {
+            defaultTools.append(SaveMemoryTool(store: memoryStore))
+            defaultTools.append(SearchMemoryTool(store: memoryStore))
+            defaultTools.append(ListMemoriesTool(store: memoryStore))
+            defaultTools.append(UpdateMemoryTool(store: memoryStore))
+            defaultTools.append(DeleteMemoryTool(store: memoryStore))
         }
         let registeredTools = tools ?? defaultTools
         self.toolsByName = Dictionary(uniqueKeysWithValues: registeredTools.map { ($0.name, $0) })

@@ -156,6 +156,24 @@ private struct TracingHarness {
         try require(!payloadText.contains("SECURITY_SCOPED_BOOKMARK_DATA"), "Bookmark data appeared in a trace payload")
         try require(payloadText.contains("returned_bytes") && payloadText.contains("truncated"), "Safe tool metadata was not retained")
         try require(requests.allSatisfy { $0.value(forHTTPHeaderField: "X-API-Key") == fakeKey }, "API key was not isolated to the authentication header")
+
+        let privateSearchResult: JSONValue = .object([
+            "query": .string("private-latest-resume"),
+            "directory": .string("/Users/fake/Documents"),
+            "results": .array([.object([
+                "name": .string("Private Resume.pdf"),
+                "relativePath": .string("Private/Private Resume.pdf")
+            ])]),
+            "candidateCount": .number(27),
+            "returnedCount": .number(1),
+            "limitReached": .bool(true),
+            "sortMode": .string("modificationTimeDescending")
+        ])
+        let safeSearchTrace = TracingPolicy.toolOutput(name: "search_files", result: privateSearchResult)
+        let safeSearchText = String(data: try JSONEncoder().encode(safeSearchTrace), encoding: .utf8) ?? ""
+        try require(!safeSearchText.contains("private-latest-resume"), "Search query leaked into trace metadata")
+        try require(!safeSearchText.contains("Private Resume.pdf") && !safeSearchText.contains("/Users/fake"), "Search candidate data leaked into trace metadata")
+        try require(safeSearchText.contains("candidate_count_before_limit") && safeSearchText.contains("sort_mode"), "Safe search aggregate metadata was missing")
         print("PASS privacy: secrets, content, paths, bookmarks, and prompts excluded; safe metrics retained")
 
         for failure in [

@@ -56,7 +56,17 @@ struct MainView: View {
                 }
             }
         case .memory:
-            MemoryView()
+            if let memoryStore = conversationStore.memoryStore {
+                MemoryView(store: memoryStore)
+            } else {
+                DetailPage(title: "Memory", subtitle: "Information your Personal AI remembers across conversations.") {
+                    EmptyStateView(
+                        icon: "exclamationmark.triangle",
+                        title: "Memory unavailable",
+                        description: "Local memory storage could not be initialized."
+                    )
+                }
+            }
         case .skills:
             SkillsView()
         case .settings:

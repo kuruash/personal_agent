@@ -183,7 +183,8 @@ final class AgentViewModel: ObservableObject {
             client: try NebiusClient(),
             restoredHistory: restoredHistory,
             conversationID: currentConversationID,
-            profileStore: conversationStore.profileStore
+            profileStore: conversationStore.profileStore,
+            memoryStore: conversationStore.memoryStore
         )
         runtime = newRuntime
         return newRuntime

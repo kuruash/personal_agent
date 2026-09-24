@@ -2,7 +2,7 @@ import Foundation
 import os
 
 enum DatabaseMigrator {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     static func migrate(connection: SQLiteConnection, logger: Logger) throws {
         let currentVersion = Int(try connection.query("PRAGMA user_version;").first?.integer("user_version") ?? 0)
@@ -45,6 +45,24 @@ enum DatabaseMigrator {
                 try connection.execute("COMMIT;")
                 #if DEBUG
                 logger.notice("[Database] Migration V2 completed")
+                #endif
+            } catch {
+                try? connection.execute("ROLLBACK;")
+                throw DatabaseError.migrationFailed(error.localizedDescription)
+            }
+        }
+
+        if currentVersion < 3 {
+            #if DEBUG
+            logger.notice("[Database] Applying migration V3")
+            #endif
+            do {
+                try connection.execute("BEGIN IMMEDIATE TRANSACTION;")
+                try migrationV3(connection)
+                try connection.execute("PRAGMA user_version = 3;")
+                try connection.execute("COMMIT;")
+                #if DEBUG
+                logger.notice("[Database] Migration V3 completed")
                 #endif
             } catch {
                 try? connection.execute("ROLLBACK;")
@@ -263,5 +281,22 @@ enum DatabaseMigrator {
         try database.execute("ALTER TABLE documents ADD COLUMN filename TEXT;")
         try database.execute("ALTER TABLE documents ADD COLUMN last_updated TEXT;")
         try database.execute("UPDATE documents SET label = name WHERE label IS NULL;")
+    }
+
+    private static func migrationV3(_ database: SQLiteConnection) throws {
+        try database.execute("""
+            CREATE TABLE memories (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL CHECK (type IN ('preference', 'goal', 'project', 'decision', 'context', 'other')),
+                content TEXT NOT NULL,
+                normalized_content TEXT NOT NULL UNIQUE,
+                source TEXT NOT NULL CHECK (source IN ('user_explicit', 'agent_tool', 'manual_ui')),
+                importance TEXT NOT NULL CHECK (importance IN ('low', 'normal', 'high')),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """)
+        try database.execute("CREATE INDEX idx_memories_updated_at ON memories(updated_at DESC, id ASC);")
+        try database.execute("CREATE INDEX idx_memories_type ON memories(type, updated_at DESC, id ASC);")
     }
 }

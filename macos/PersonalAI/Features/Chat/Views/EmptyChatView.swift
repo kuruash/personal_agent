@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EmptyChatView: View {
     @Binding var prompt: String
+    @Binding var attachments: [ChatAttachment]
     @ObservedObject var agent: AgentViewModel
 
     var body: some View {
@@ -18,7 +19,12 @@ struct EmptyChatView: View {
                 .multilineTextAlignment(.center)
                 .padding(.bottom, AppSpacing.xLarge)
 
-            ChatComposer(text: $prompt, isWorking: agent.isWorking, onSubmit: agent.submit)
+            ChatComposer(
+                text: $prompt,
+                attachments: $attachments,
+                isWorking: agent.isWorking,
+                onSubmit: agent.submit
+            )
 
             Spacer(minLength: AppSpacing.xxLarge)
         }

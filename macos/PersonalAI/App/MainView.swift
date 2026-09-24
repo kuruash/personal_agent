@@ -4,6 +4,7 @@ struct MainView: View {
     @State private var destination: AppDestination? = .assistant
     @State private var sidebarMode: SidebarMode = .expanded
     @State private var prompt = ""
+    @State private var attachments: [ChatAttachment] = []
     @ObservedObject private var conversationStore: ConversationStore
     @StateObject private var agent: AgentViewModel
 
@@ -41,7 +42,7 @@ struct MainView: View {
     private var detailContent: some View {
         switch destination ?? .assistant {
         case .assistant:
-            ChatView(prompt: $prompt, agent: agent)
+            ChatView(prompt: $prompt, attachments: $attachments, agent: agent)
         case .profile:
             if let profileStore = conversationStore.profileStore {
                 ProfileView(store: profileStore)
@@ -66,6 +67,7 @@ struct MainView: View {
     private func startNewChat() {
         destination = .assistant
         prompt = ""
+        attachments = []
         agent.startNewConversation()
     }
 
@@ -83,6 +85,7 @@ struct MainView: View {
             set: { id in
                 guard let id else { return }
                 prompt = ""
+                attachments = []
                 destination = .assistant
                 agent.selectConversation(id: id)
             }

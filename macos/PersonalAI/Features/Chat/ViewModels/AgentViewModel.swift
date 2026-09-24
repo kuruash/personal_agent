@@ -17,6 +17,7 @@ final class AgentViewModel: ObservableObject {
 
     private let fileAccessPolicy = FileAccessPolicy.shared
     private var runtime: AgentRuntime?
+    private var currentModelHistory: [ChatMessage] = []
     private var policyObservation: AnyCancellable?
     private var sessionID = UUID()
 
@@ -89,10 +90,25 @@ final class AgentViewModel: ObservableObject {
         // A new runtime guarantees fresh model history. Any in-flight response from the
         // previous conversation is ignored via conversationID above.
         runtime = nil
+        currentModelHistory = []
     }
 
     func selectConversation(id: UUID) {
-        guard let conversation = conversationStore.conversation(id: id) else { return }
+        // Invalidate any response for the previous conversation and clear its
+        // visible messages before performing the SQLite-backed selection load.
+        sessionID = UUID()
+        currentConversationID = id
+        messages = []
+        currentModelHistory = []
+        errorMessage = nil
+        state = nil
+        isWorking = false
+        runtime = nil
+
+        guard let conversation = conversationStore.loadConversation(id: id) else {
+            currentConversationID = nil
+            return
+        }
         activate(conversation)
     }
 
@@ -100,6 +116,7 @@ final class AgentViewModel: ObservableObject {
         sessionID = UUID()
         currentConversationID = conversation.id
         messages = conversation.messages
+        currentModelHistory = conversation.modelHistory
         errorMessage = nil
         state = nil
         isWorking = false
@@ -156,8 +173,7 @@ final class AgentViewModel: ObservableObject {
 
     private func makeRuntimeIfNeeded() throws -> AgentRuntime {
         if let runtime { return runtime }
-        let persistedHistory = currentConversationID
-            .flatMap { conversationStore.conversation(id: $0)?.modelHistory } ?? []
+        let persistedHistory = currentModelHistory
         // submit() has already appended the current user message; AgentRuntime.send will
         // append it to model history, so fallback restoration must exclude that one message.
         let restoredHistory = persistedHistory.isEmpty
@@ -180,13 +196,14 @@ final class AgentViewModel: ObservableObject {
 
     private func persistCurrentConversation(modelHistory: [ChatMessage]? = nil) {
         guard let currentConversationID else { return }
+        if let modelHistory { currentModelHistory = modelHistory }
         let existing = conversationStore.conversation(id: currentConversationID)
         let firstUserMessage = messages.first(where: { $0.role == .user })?.content ?? "Conversation"
         let conversation = Conversation(
             id: currentConversationID,
             title: existing?.title ?? ConversationStore.title(from: firstUserMessage),
             messages: messages,
-            modelHistory: modelHistory ?? existing?.modelHistory ?? [],
+            modelHistory: modelHistory ?? currentModelHistory,
             createdAt: existing?.createdAt ?? Date(),
             updatedAt: Date()
         )

@@ -179,13 +179,19 @@ private struct DatabaseHarness {
         let noon = eleven.addingTimeInterval(3_600)
         let chatA = Conversation(
             title: "Chat A",
-            messages: [ConversationMessage(role: .user, content: "A", createdAt: ten)],
+            messages: [
+                ConversationMessage(role: .user, content: "A1", createdAt: ten),
+                ConversationMessage(role: .assistant, content: "A2", createdAt: ten.addingTimeInterval(1))
+            ],
             createdAt: ten,
             updatedAt: ten
         )
         let chatB = Conversation(
             title: "Chat B",
-            messages: [ConversationMessage(role: .user, content: "B", createdAt: eleven)],
+            messages: [
+                ConversationMessage(role: .user, content: "B1", createdAt: eleven),
+                ConversationMessage(role: .assistant, content: "B2", createdAt: eleven.addingTimeInterval(1))
+            ],
             createdAt: eleven,
             updatedAt: eleven
         )
@@ -200,12 +206,36 @@ private struct DatabaseHarness {
         let stateViewModel = AgentViewModel(conversationStore: stateStore)
         try require(stateStore.conversations.map(\.id) == [chatB.id, chatA.id], "Initial Recent ordering was incorrect")
         stateViewModel.selectConversation(id: chatA.id)
+        try require(stateViewModel.currentConversationID == chatA.id, "Selecting Chat A did not synchronize its ID")
+        try require(stateViewModel.messages.map(\.content) == ["A1", "A2"], "Selecting Chat A did not load only A messages")
         try require(stateStore.conversations.map(\.id) == [chatB.id, chatA.id], "Selection reordered Recent")
         try require(stateStore.conversation(id: chatA.id)?.updatedAt == ten, "Selection mutated updatedAt")
 
+        stateViewModel.selectConversation(id: chatB.id)
+        try require(stateViewModel.currentConversationID == chatB.id, "Selecting Chat B did not synchronize its ID")
+        try require(stateViewModel.messages.map(\.content) == ["B1", "B2"], "A to B switch left stale or mixed messages")
+
+        stateViewModel.submit("B3")
+        let persistedB = try stateRepository.loadConversation(id: chatB.id)
+        try require(persistedB?.messages.map(\.content) == ["B1", "B2", "B3"], "New selected-conversation message was persisted to the wrong conversation")
+        try require(try stateRepository.loadConversation(id: chatA.id)?.messages.map(\.content) == ["A1", "A2"], "Sending to Chat B changed Chat A")
+        stateViewModel.selectConversation(id: chatB.id)
+
+        let restoredStore = ConversationStore(
+            database: stateDatabase,
+            legacyStorageURL: directory.appendingPathComponent("missing-restored-legacy.json"),
+            fileManager: fm
+        )
+        let restoredViewModel = AgentViewModel(conversationStore: restoredStore)
+        restoredViewModel.selectConversation(id: chatA.id)
+        try require(restoredViewModel.messages.map(\.content) == ["A1", "A2"], "Fresh view-model did not restore Chat A from SQLite")
+        restoredViewModel.selectConversation(id: chatB.id)
+        try require(restoredViewModel.messages.map(\.content) == ["B1", "B2", "B3"], "Fresh view-model did not restore Chat B from SQLite")
+        print("PASS conversation selection: isolated SQLite hydration, switching, selected send, and restoration")
+
         var changedA = chatA
         changedA.messages.append(ConversationMessage(role: .assistant, content: "Changed", createdAt: noon))
-        changedA.updatedAt = noon
+        changedA.updatedAt = Date().addingTimeInterval(60)
         try require(stateStore.save(changedA), "Meaningful Chat A update was not saved")
         try require(stateStore.conversations.map(\.id) == [chatA.id, chatB.id], "Content update did not reorder Recent")
         print("PASS conversation ordering: selection is read-only; content updates recency")
@@ -225,6 +255,19 @@ private struct DatabaseHarness {
         stateViewModel.startNewConversation()
         try require(stateStore.conversations.isEmpty, "New Chat persisted an empty conversation")
         print("PASS chat state: deletes preserve/replace selection, cascade children, and New Chat stays transient")
+
+        let attachmentURL = directory.appendingPathComponent("fictional-attachment.txt")
+        try Data("harmless attachment fixture".utf8).write(to: attachmentURL)
+        var attachments = [try ChatAttachmentAccess.makeAttachment(from: attachmentURL)]
+        try require(attachments.first?.displayName == "fictional-attachment.txt", "Attachment display name was not retained")
+        try require(attachments.first?.byteSize == 27, "Attachment size was not retained")
+        attachments.removeAll()
+        try require(fm.fileExists(atPath: attachmentURL.path), "Removing a draft attachment deleted the source file")
+        do {
+            _ = try ChatAttachmentAccess.makeAttachment(from: directory)
+            throw TestFailure.failed("A directory was accepted as a file attachment")
+        } catch ChatAttachmentError.invalidSelection { }
+        print("PASS attachments: authorized file staging, metadata, safe removal, and invalid selection")
 
         print("ALL DATABASE TESTS PASSED")
     }

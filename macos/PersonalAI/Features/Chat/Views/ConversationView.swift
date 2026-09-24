@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConversationView: View {
     @Binding var prompt: String
+    @Binding var attachments: [ChatAttachment]
     @ObservedObject var agent: AgentViewModel
 
     private let bottomID = "conversation-bottom"
@@ -43,7 +44,12 @@ struct ConversationView: View {
 
             Divider()
 
-            ChatComposer(text: $prompt, isWorking: agent.isWorking, onSubmit: agent.submit)
+            ChatComposer(
+                text: $prompt,
+                attachments: $attachments,
+                isWorking: agent.isWorking,
+                onSubmit: agent.submit
+            )
                 .frame(maxWidth: 760)
                 .padding(.horizontal, AppSpacing.xxLarge)
                 .padding(.vertical, AppSpacing.medium)

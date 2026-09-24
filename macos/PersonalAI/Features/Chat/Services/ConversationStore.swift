@@ -54,6 +54,20 @@ final class ConversationStore: ObservableObject {
         conversations.first { $0.id == id }
     }
 
+    /// Loads the selected conversation from SQLite rather than relying on the
+    /// sidebar's in-memory summary/cache.
+    func loadConversation(id: UUID) -> Conversation? {
+        guard let repository else { return nil }
+        do {
+            let conversation = try repository.loadConversation(id: id)
+            lastErrorDescription = nil
+            return conversation
+        } catch {
+            handle(error, userMessage: "The selected conversation could not be loaded.")
+            return nil
+        }
+    }
+
     @discardableResult
     func save(_ conversation: Conversation) -> Bool {
         guard conversation.hasMeaningfulContent, let repository else { return false }

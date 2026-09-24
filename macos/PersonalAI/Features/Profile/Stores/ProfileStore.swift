@@ -15,6 +15,14 @@ final class ProfileStore: @unchecked Sendable {
         try repository.loadPersonalProfile()
     }
 
+    func saveProfile(_ profile: PersonalProfile) throws {
+        try repository.savePersonalProfile(profile)
+    }
+
+    func updateDocumentAssociation(id: String, filename: String?, path: String?, lastUpdated: String?) throws {
+        try repository.updateDocumentAssociation(id: id, filename: filename, path: path, lastUpdated: lastUpdated)
+    }
+
     func availableSections() throws -> [ProfileSection] {
         guard let profile = try loadProfile() else { return [] }
         return ProfileSection.allCases.filter { section in

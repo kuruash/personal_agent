@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainView: View {
     @State private var destination: AppDestination? = .assistant
+    @State private var sidebarMode: SidebarMode = .expanded
     @State private var prompt = ""
     @ObservedObject private var conversationStore: ConversationStore
     @StateObject private var agent: AgentViewModel
@@ -12,8 +13,9 @@ struct MainView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            ConversationSidebar(
+        HStack(spacing: 0) {
+            SidebarContainer(
+                mode: $sidebarMode,
                 conversations: conversationStore.conversations,
                 selectedConversationID: selectedConversationBinding,
                 destination: $destination,
@@ -21,11 +23,13 @@ struct MainView: View {
                 onRenameConversation: agent.renameConversation,
                 onDeleteConversation: deleteConversation
             )
-            .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
-        } detail: {
+
+            Divider()
+
             detailContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
+        .animation(.easeInOut(duration: 0.18), value: sidebarMode)
         .alert("Conversation Storage", isPresented: storageErrorBinding) {
             Button("OK") { conversationStore.dismissError() }
         } message: {
@@ -38,6 +42,18 @@ struct MainView: View {
         switch destination ?? .assistant {
         case .assistant:
             ChatView(prompt: $prompt, agent: agent)
+        case .profile:
+            if let profileStore = conversationStore.profileStore {
+                ProfileView(store: profileStore)
+            } else {
+                DetailPage(title: "Profile", subtitle: "Information Personal AI can use to assist you.") {
+                    EmptyStateView(
+                        icon: "exclamationmark.triangle",
+                        title: "Profile unavailable",
+                        description: "Local profile storage could not be initialized."
+                    )
+                }
+            }
         case .memory:
             MemoryView()
         case .skills:

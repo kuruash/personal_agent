@@ -1,5 +1,47 @@
 import SwiftUI
 
+enum SidebarMode: Equatable {
+    case expanded
+    case compact
+}
+
+struct SidebarContainer: View {
+    @Binding var mode: SidebarMode
+    let conversations: [Conversation]
+    @Binding var selectedConversationID: UUID?
+    @Binding var destination: AppDestination?
+    let onNewChat: () -> Void
+    let onRenameConversation: (UUID, String) -> Void
+    let onDeleteConversation: (UUID) -> Void
+
+    var body: some View {
+        Group {
+            if mode == .expanded {
+                ConversationSidebar(
+                    conversations: conversations,
+                    selectedConversationID: $selectedConversationID,
+                    destination: $destination,
+                    onNewChat: onNewChat,
+                    onRenameConversation: onRenameConversation,
+                    onDeleteConversation: onDeleteConversation,
+                    onCollapse: { mode = .compact }
+                )
+                .transition(.opacity)
+            } else {
+                CompactConversationSidebar(
+                    destination: $destination,
+                    onNewChat: onNewChat,
+                    onExpand: { mode = .expanded }
+                )
+                .transition(.opacity)
+            }
+        }
+        .frame(width: mode == .expanded ? 252 : 60)
+        .clipped()
+        .background(.thinMaterial)
+    }
+}
+
 struct ConversationSidebar: View {
     let conversations: [Conversation]
     @Binding var selectedConversationID: UUID?
@@ -7,6 +49,7 @@ struct ConversationSidebar: View {
     let onNewChat: () -> Void
     let onRenameConversation: (UUID, String) -> Void
     let onDeleteConversation: (UUID) -> Void
+    let onCollapse: () -> Void
 
     @State private var renameConversationID: UUID?
     @State private var renameText = ""
@@ -56,13 +99,14 @@ struct ConversationSidebar: View {
                 .padding(.horizontal, AppSpacing.medium)
 
             List(selection: $destination) {
+                navigationRow("Profile", systemImage: "person.crop.circle", destination: .profile)
                 navigationRow("Memory", systemImage: "brain", destination: .memory)
                 navigationRow("Skills", systemImage: "hammer", destination: .skills)
                 navigationRow("Settings", systemImage: "gearshape", destination: .settings)
             }
             .listStyle(.sidebar)
             .scrollDisabled(true)
-            .frame(height: 118)
+            .frame(height: 146)
             .padding(.vertical, AppSpacing.xSmall)
         }
         .background(.thinMaterial)
@@ -108,6 +152,14 @@ struct ConversationSidebar: View {
                 .font(AppTypography.sidebarTitle)
 
             Spacer()
+
+            Button(action: onCollapse) {
+                Image(systemName: "sidebar.left")
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Compact Sidebar")
         }
         .padding(.horizontal, AppSpacing.large)
         .padding(.top, AppSpacing.large)
@@ -152,5 +204,64 @@ struct ConversationSidebar: View {
     ) -> some View {
         Label(title, systemImage: systemImage)
             .tag(destination)
+    }
+}
+
+private struct CompactConversationSidebar: View {
+    @Binding var destination: AppDestination?
+    let onNewChat: () -> Void
+    let onExpand: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppSpacing.small) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 34, height: 34)
+                .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .help("Personal AI")
+                .padding(.top, AppSpacing.medium)
+
+            compactButton("Expand Sidebar", icon: "sidebar.right", action: onExpand)
+            compactButton("New Chat", icon: "square.and.pencil", action: onNewChat)
+
+            Spacer()
+
+            destinationButton("Profile", icon: "person.crop.circle", destination: .profile)
+            destinationButton("Memory", icon: "brain", destination: .memory)
+            destinationButton("Skills", icon: "hammer", destination: .skills)
+            destinationButton("Settings", icon: "gearshape", destination: .settings)
+                .padding(.bottom, AppSpacing.medium)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func compactButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: 36, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(title)
+    }
+
+    private func destinationButton(_ title: String, icon: String, destination value: AppDestination) -> some View {
+        let selected = destination == value
+        return Button {
+            destination = value
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+                .frame(width: 38, height: 32)
+                .background(selected ? Color.primary.opacity(0.10) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(title)
+        .accessibilityLabel(title)
     }
 }

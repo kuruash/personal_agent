@@ -2,6 +2,7 @@ import Foundation
 
 enum AppDestination: String, Hashable, Identifiable {
     case assistant
+    case profile
     case memory
     case skills
     case settings

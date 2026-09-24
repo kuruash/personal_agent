@@ -100,6 +100,90 @@ private struct ProfileHarness {
         print("PASS repository: every canonical section round-tripped")
 
         let store = ProfileStore(repository: repository)
+        let presentationProfile = try store.loadProfile()
+        try require(presentationProfile?.identity == fixture.identity, "ProfileStore did not load records for presentation")
+        print("PASS UI read path: ProfileStore loaded the canonical profile")
+
+        var cancelledDraft = try store.loadProfile()!
+        cancelledDraft.identity.preferredName = "Unsaved Name"
+        let afterCancel = try store.loadProfile()
+        try require(afterCancel?.identity.preferredName == fixture.identity.preferredName, "Draft edit mutated persistence before Save")
+        print("PASS UI cancel path: an unsaved draft did not mutate SQLite")
+
+        var updatedProfile = try store.loadProfile()!
+        updatedProfile.identity.preferredName = "Updated Example"
+        try store.saveProfile(updatedProfile)
+        let afterUpdate = try store.loadProfile()
+        try require(afterUpdate?.identity.preferredName == "Updated Example", "Saved identity update did not reload")
+        let identityAfterUpdate = try await GetProfileSectionTool(store: store).execute(arguments: .object(["section": .string("identity")]))
+        let identityText = String(data: try JSONEncoder().encode(identityAfterUpdate), encoding: .utf8) ?? ""
+        try require(identityText.contains("Updated Example"), "Agent-facing Profile tool did not observe the UI mutation path")
+        print("PASS update and agent consistency: SQLite and Profile tools observed the saved value")
+
+        let addedID = "ui_test_experience_\(UUID().uuidString.lowercased())"
+        updatedProfile = try store.loadProfile()!
+        updatedProfile.experience.append(ExperienceRecord(
+            id: addedID, company: "Fictional Test Company", title: "Test Engineer", employmentType: "Contract",
+            location: "Remote", startDate: "2026-01", endDate: "2026-02", isCurrent: false,
+            achievements: ["Test fixture only"], technologies: ["Swift"]
+        ))
+        try store.saveProfile(updatedProfile)
+        let afterAdd = try store.loadProfile()
+        try require(afterAdd?.experience.contains(where: { $0.id == addedID }) == true, "Added record did not retain its stable ID")
+        updatedProfile = try store.loadProfile()!
+        let originalExperienceIDs = Set(fixture.experience.map(\.id))
+        updatedProfile.experience.removeAll { $0.id == addedID }
+        try store.saveProfile(updatedProfile)
+        let afterDelete = try store.loadProfile()!
+        try require(!afterDelete.experience.contains(where: { $0.id == addedID }), "Deleted collection record remained")
+        try require(Set(afterDelete.experience.map(\.id)) == originalExperienceIDs, "Delete removed an unrelated collection record")
+        print("PASS collection mutations: stable-ID add and targeted delete persisted")
+
+        let defaultsSuite = "PersonalAI.ProfileDocumentTests.\(UUID().uuidString)"
+        guard let testDefaults = UserDefaults(suiteName: defaultsSuite) else {
+            throw ProfileTestError.failed("Could not create isolated document bookmark storage")
+        }
+        defer { testDefaults.removePersistentDomain(forName: defaultsSuite) }
+        let access = ProfileDocumentAccess(defaults: testDefaults, defaultsKey: "testProfileDocumentBookmarks")
+        let firstPDF = directory.appendingPathComponent("fictional-associated-resume.pdf")
+        try Data("%PDF-1.4\n% fictional test fixture".utf8).write(to: firstPDF)
+        let firstAssociation = try access.associate(firstPDF, with: "example_resume", documentType: "resume")
+        try store.updateDocumentAssociation(
+            id: "example_resume", filename: firstAssociation.url.lastPathComponent,
+            path: firstAssociation.url.path, lastUpdated: "2026-09-24T12:00:00Z"
+        )
+        let documentPath = firstPDF.path
+        let afterDocumentAssociation = try store.loadProfile()
+        try require(afterDocumentAssociation?.documents.first(where: { $0.id == "example_resume" })?.path == documentPath, "Document association metadata did not persist")
+
+        let replacementPDF = directory.appendingPathComponent("fictional-replacement-resume.PDF")
+        try Data("%PDF-1.4\n% fictional replacement fixture".utf8).write(to: replacementPDF)
+        let replacement = try access.associate(replacementPDF, with: "example_resume", documentType: "resume")
+        try store.updateDocumentAssociation(
+            id: "example_resume", filename: replacement.url.lastPathComponent,
+            path: replacement.url.path, lastUpdated: "2026-09-24T13:00:00Z"
+        )
+        let afterReplacement = try store.loadProfile()
+        try require(afterReplacement?.documents.first(where: { $0.id == "example_resume" })?.path == replacementPDF.path, "Replacement association did not persist")
+
+        do {
+            try store.updateDocumentAssociation(id: "missing_document", filename: "missing.pdf", path: "/fictional/missing.pdf", lastUpdated: nil)
+            throw ProfileTestError.failed("Missing document record was silently accepted")
+        } catch ProfileRepository.DocumentAssociationError.documentRecordNotFound { }
+
+        let unsupported = directory.appendingPathComponent("unsupported.exe")
+        try Data("not a document".utf8).write(to: unsupported)
+        do {
+            _ = try access.associate(unsupported, with: "example_resume", documentType: "resume")
+            throw ProfileTestError.failed("Unsupported document type was accepted")
+        } catch ProfileDocumentAccessError.unsupportedFileType { }
+
+        try store.updateDocumentAssociation(id: "example_resume", filename: nil, path: nil, lastUpdated: nil)
+        access.removeAssociation(for: "example_resume")
+        let afterDocumentRemoval = try store.loadProfile()
+        try require(afterDocumentRemoval?.documents.first(where: { $0.id == "example_resume" })?.path == nil, "Document association could not be removed")
+        print("PASS document association: PDF bookmark, stable-ID persistence, replacement, rejection, and removal")
+
         for query in ["AWS", "Kubernetes", "Python", "Go", "RAG"] {
             let matches = try store.search(query)
             try require(!matches.isEmpty, "Search returned no result for \(query)")

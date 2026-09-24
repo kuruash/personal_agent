@@ -1,6 +1,52 @@
 import Foundation
 
 extension ProfileRepository {
+    enum DocumentAssociationError: Error {
+        case documentRecordNotFound
+    }
+
+    func updateDocumentAssociation(id: String, filename: String?, path: String?, lastUpdated: String?, updatedAt: Date = Date()) throws {
+        try database.read { connection in
+            try connection.execute("""
+                UPDATE documents
+                SET filename = ?, file_path = ?, last_updated = ?, updated_at = ?
+                WHERE id = ?;
+                """, bindings: [
+                    filename.sqliteValue, path.sqliteValue, lastUpdated.sqliteValue,
+                    .text(RepositoryDate.encode(updatedAt)), .text(id)
+                ])
+            let changed = try connection.query("SELECT changes() AS count;").first?.integer("count") ?? 0
+            guard changed == 1 else { throw DocumentAssociationError.documentRecordNotFound }
+        }
+    }
+
+    /// Replaces the canonical structured profile in one transaction. This is the
+    /// mutation path used by Profile UI; existing record IDs remain unchanged and
+    /// records omitted from collection sections are deliberately deleted.
+    func savePersonalProfile(_ profile: PersonalProfile, updatedAt: Date = Date()) throws {
+        let timestamp = RepositoryDate.encode(updatedAt)
+        try database.transaction { connection in
+            try upsertSingletons(profile, timestamp: timestamp, connection: connection)
+            if profile.address == nil {
+                try connection.execute("DELETE FROM profile_address WHERE id = 1;")
+            }
+            try replaceCollection(table: "profile_links", ids: profile.links.map(\.id), connection: connection)
+            try replaceCollection(table: "profile_education", ids: profile.education.map(\.id), connection: connection)
+            try replaceCollection(table: "profile_experience", ids: profile.experience.map(\.id), connection: connection)
+            try replaceCollection(table: "profile_projects", ids: profile.projects.map(\.id), connection: connection)
+            try replaceCollection(table: "profile_certifications", ids: profile.certifications.map(\.id), connection: connection)
+            try replaceCollection(table: "documents", ids: profile.documents.map(\.id), connection: connection)
+            try connection.execute("DELETE FROM profile_skills;")
+            try upsertLinks(profile.links, timestamp: timestamp, connection: connection)
+            try upsertEducation(profile.education, timestamp: timestamp, connection: connection)
+            try upsertExperience(profile.experience, timestamp: timestamp, connection: connection)
+            try upsertSkills(profile.skills, timestamp: timestamp, connection: connection)
+            try upsertProjects(profile.projects, timestamp: timestamp, connection: connection)
+            try upsertCertifications(profile.certifications, timestamp: timestamp, connection: connection)
+            try replaceDocuments(profile.documents, timestamp: timestamp, connection: connection)
+        }
+    }
+
     func importProfile(_ profile: PersonalProfile, importedAt: Date = Date()) throws {
         let timestamp = RepositoryDate.encode(importedAt)
         try database.transaction { connection in
@@ -257,6 +303,23 @@ extension ProfileRepository {
         }
     }
 
+    private func replaceDocuments(_ records: [ProfileDocument], timestamp: String, connection: SQLiteConnection) throws {
+        for r in records {
+            try connection.execute("""
+                INSERT INTO documents (id, type, name, file_path, mime_type, is_primary, created_at, updated_at, label, filename, last_updated)
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET type=excluded.type, name=excluded.name,
+                file_path=excluded.file_path, is_primary=excluded.is_primary,
+                updated_at=excluded.updated_at, label=excluded.label,
+                filename=excluded.filename, last_updated=excluded.last_updated;
+                """, bindings: [
+                    .text(r.id), .text(r.type), .text(r.label), r.path.sqliteValue,
+                    .integer(r.preferred ? 1 : 0), .text(timestamp), .text(timestamp), .text(r.label),
+                    r.filename.sqliteValue, r.lastUpdated.sqliteValue
+                ])
+        }
+    }
+
     private func loadLinks(_ connection: SQLiteConnection) throws -> [ProfileLinkRecord] {
         try connection.query("SELECT id, label, url FROM profile_links ORDER BY label COLLATE NOCASE, id;").map {
             ProfileLinkRecord(id: try $0.requiredText("id"), label: try $0.requiredText("label"), url: try $0.requiredText("url"))
@@ -332,5 +395,19 @@ extension ProfileRepository {
     private func decodeStrings(_ value: String) throws -> [String] {
         do { return try JSONDecoder().decode([String].self, from: Data(value.utf8)) }
         catch { throw DatabaseError.decodingFailed("Could not decode profile list.") }
+    }
+
+    private func replaceCollection(table: String, ids: [String], connection: SQLiteConnection) throws {
+        let allowed = ["profile_links", "profile_education", "profile_experience", "profile_projects", "profile_certifications", "documents"]
+        guard allowed.contains(table) else { throw DatabaseError.transactionFailed("Unsupported profile collection.") }
+        if ids.isEmpty {
+            try connection.execute("DELETE FROM \(table);")
+            return
+        }
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+        try connection.execute(
+            "DELETE FROM \(table) WHERE id NOT IN (\(placeholders));",
+            bindings: ids.map(SQLiteValue.text)
+        )
     }
 }

@@ -74,6 +74,12 @@ enum TracingPolicy {
                     input["memory_type"] = .string(type)
                 }
             }
+            if ["get_calendar_events", "search_calendar_events", "create_calendar_event", "update_calendar_event", "delete_calendar_event"].contains(name) {
+                input["operation"] = .string(name)
+                if let start = calendarDate(object["start"]), let end = calendarDate(object["end"]), end > start {
+                    input["range_hours"] = .number((end.timeIntervalSince(start) / 3600).rounded())
+                }
+            }
         }
         return input
     }
@@ -121,10 +127,23 @@ enum TracingPolicy {
             }
         case "delete_memory":
             output["deleted"] = .bool(object["error"] == nil)
+        case "get_calendar_events", "search_calendar_events":
+            if let success = object["success"] { output["success"] = success }
+            if let count = object["result_count"] { output["result_count"] = count }
+            if let reached = object["limit_reached"] { output["limit_reached"] = reached }
+            if let reason = object["reason"] { output["reason"] = reason }
+        case "create_calendar_event", "update_calendar_event", "delete_calendar_event":
+            output["approval_required"] = object["approval_required"] ?? .bool(true)
+            if let approval = object["approval_status"] { output["approval_status"] = approval }
         default:
             break
         }
         return output
+    }
+
+    private static func calendarDate(_ value: JSONValue?) -> Date? {
+        guard case .string(let text) = value else { return nil }
+        return ISO8601DateFormatter().date(from: text)
     }
 
     static func rootOutput(response: String, modelID: String?) -> [String: JSONValue] {

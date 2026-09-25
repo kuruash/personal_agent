@@ -53,9 +53,21 @@ struct SettingsView: View {
                     }
 
                     settingsSection("AI") {
-                        valueRow("Model", value: agent.selectedModelID ?? "Not connected")
+                        valueRow("Model Mode", value: "Auto")
+                        Divider()
+                        valueRow("Fast", value: ModelConfiguration.fast.displayName)
+                        Divider()
+                        valueRow("Reasoning", value: ModelConfiguration.reasoning.displayName)
+                        Divider()
+                        valueRow("Vision", value: ModelConfiguration.vision.displayName)
+                        Divider()
+                        valueRow("Current Model", value: agent.selectedModelID ?? "Not connected")
                         Divider()
                         valueRow("Provider", value: agent.providerName)
+                    }
+
+                    if let calendarStore = agent.conversationStore.calendarStore {
+                        settingsSection("CALENDAR") { CalendarSettingsRow(store: calendarStore) }
                     }
                 }
                 .frame(maxWidth: 700)
@@ -199,6 +211,20 @@ struct SettingsView: View {
         }
         .padding(.vertical, AppSpacing.small)
     }
+}
+
+private struct CalendarSettingsRow: View {
+    @ObservedObject var store: CalendarStore
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.small) {
+            HStack { Label("Calendar", systemImage: "calendar"); Spacer(); Text(status).foregroundStyle(.secondary) }
+            Text(description).font(.callout).foregroundStyle(.secondary)
+            if store.authorizationStatus == .authorized { Text("Calendars available: \(store.calendarCount)").font(.caption).foregroundStyle(.secondary) }
+            if store.authorizationStatus == .notDetermined { Button("Connect Calendar") { Task { await store.connect() } }.buttonStyle(.borderedProminent) } else { Button("Refresh Status") { store.refreshStatus() }.buttonStyle(.bordered) }
+        }.padding(.vertical, AppSpacing.medium).task { store.refreshStatus() }
+    }
+    private var status: String { switch store.authorizationStatus { case .authorized: "Connected"; case .notDetermined: "Not Connected"; case .denied: "Access Denied"; case .restricted: "Restricted"; case .unavailable: "Unavailable" } }
+    private var description: String { store.authorizationStatus == .authorized ? "Personal AI can view and manage events after your approval." : "Calendar authorization is managed by macOS." }
 }
 
 private struct PermissionItem: Identifiable {

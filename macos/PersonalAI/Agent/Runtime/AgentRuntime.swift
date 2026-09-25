@@ -54,15 +54,22 @@ actor AgentRuntime {
         subsystem: Bundle.main.bundleIdentifier ?? "com.personalai.app",
         category: "PersonalAI.Agent"
     )
-    private static let systemPrompt = """
+    private static func systemPrompt(now: Date = Date()) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = .current
+        let timezone = TimeZone.current.identifier
+        return """
         You are Personal AI. Use an available tool whenever the user explicitly asks you to use it. \
         Never invent a tool result. After a tool responds, answer using only the returned data. \
         Use Profile tools when the user asks about their personal, education, professional, career, authorization, or document information. \
         Profile contains stable structured facts; Memory contains durable contextual preferences, goals, projects, decisions, and context. \
         Use Memory tools only when relevant, and save memory only when the user clearly asks to remember, save, or store something. \
         Never silently infer or persist sensitive information, never use Memory as conversation history, and never invent a missing memory. \
+        Use Calendar tools only for calendar questions. Calendar tools require concrete bounded ISO-8601 date-time ranges. For schedule answers never use Markdown tables: use short prose for zero/one event, time-and-title blocks for 2–6 events, and bullets for many events. Use each result's range_relationship to list starts_within_range and separately mention carry-over events. Do not show Calendar IDs, raw timestamps, tool metadata, or internal references. Calendar write tools only create approval proposals; tell the user to use the native approval card, never claim a write happened before approval. \
+        Current local time is \(formatter.string(from: now)) (timezone: \(timezone)); calculate calendar boundaries from this context and include the timezone offset. \
         Do not reveal hidden reasoning or chain-of-thought.
         """
+    }
 
     private let client: any NebiusServing
     private let tracer: any AgentTracer
@@ -72,6 +79,7 @@ actor AgentRuntime {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var selectedModelID: String?
+    private var selectedRoute: ModelRoute?
     private var history: [ChatMessage]
 
     init(
@@ -82,7 +90,9 @@ actor AgentRuntime {
         tracer: any AgentTracer = AgentTracerFactory.make(),
         conversationID: UUID? = nil,
         profileStore: ProfileStore? = nil,
-        memoryStore: MemoryStore? = nil
+        memoryStore: MemoryStore? = nil,
+        calendarStore: CalendarStore? = nil,
+        pendingActionStore: PendingActionStore? = nil
     ) {
         self.client = client
         self.tracer = tracer
@@ -102,16 +112,25 @@ actor AgentRuntime {
             defaultTools.append(UpdateMemoryTool(store: memoryStore))
             defaultTools.append(DeleteMemoryTool(store: memoryStore))
         }
+        if let calendarStore {
+            defaultTools.append(GetCalendarEventsTool(store: calendarStore))
+            defaultTools.append(SearchCalendarEventsTool(store: calendarStore))
+            if let pendingActionStore {
+                defaultTools.append(CreateCalendarEventTool(store: calendarStore, actions: pendingActionStore))
+                defaultTools.append(UpdateCalendarEventTool(store: calendarStore, actions: pendingActionStore))
+                defaultTools.append(DeleteCalendarEventTool(store: calendarStore, actions: pendingActionStore))
+            }
+        }
         let registeredTools = tools ?? defaultTools
         self.toolsByName = Dictionary(uniqueKeysWithValues: registeredTools.map { ($0.name, $0) })
         self.maximumIterations = maximumIterations
-        self.history = [ChatMessage(role: "system", content: Self.systemPrompt)] +
+        self.history = [ChatMessage(role: "system", content: Self.systemPrompt())] +
             restoredHistory.filter { $0.role != "system" }
         debugLog("[Agent] AgentRuntime initialized")
     }
 
     func resetConversation() {
-        history = [ChatMessage(role: "system", content: Self.systemPrompt)]
+        history = [ChatMessage(role: "system", content: Self.systemPrompt())]
     }
 
     func currentModelID() -> String? {
@@ -124,12 +143,12 @@ actor AgentRuntime {
         history.filter { $0.role != "system" }
     }
 
-    func send(userMessage: String, onState: StateHandler? = nil) async throws -> String {
+    func send(userMessage: String, hasVisualInput: Bool = false, onState: StateHandler? = nil) async throws -> String {
         await onState?(.thinking)
         let rootRun = await tracer.startRoot(conversationID: conversationID, userMessage: userMessage)
 
         do {
-            let modelID = try await resolveNemotronModel()
+            let modelID = try await resolveNemotronModel(message: userMessage, hasVisualInput: hasVisualInput)
             history.append(ChatMessage(role: "user", content: userMessage))
             var hasPendingToolResult = false
 
@@ -215,32 +234,21 @@ actor AgentRuntime {
         }
     }
 
-    private func resolveNemotronModel() async throws -> String {
-        if let selectedModelID { return selectedModelID }
-
-        let candidates = try await client.fetchModels()
-            .map(\.id)
-            .filter {
-                $0.hasPrefix("nvidia/") &&
-                $0.localizedCaseInsensitiveContains("nemotron")
-            }
-
-        guard let selected = candidates.sorted(by: modelPreference).first else {
+    private func resolveNemotronModel(message: String, hasVisualInput: Bool) async throws -> String {
+        let candidates = try await client.fetchModels().map(\.id).filter { $0.hasPrefix("nvidia/") && $0.localizedCaseInsensitiveContains("nemotron") }
+        let decision = ModelRouter().route(.init(message: message, hasVisualInput: hasVisualInput, historyCount: history.count, toolCount: toolsByName.count))
+        let selected: String?
+        if let resolved = ModelRouter().resolve(decision, available: candidates) { selected = resolved }
+        else if decision.route == .vision { selected = nil }
+        else if decision.route == .fast { selected = ModelRouter().resolve(.init(route: .reasoning, reason: "fast_model_unavailable", configuration: .reasoning), available: candidates) }
+        else { selected = nil }
+        guard let selected else {
             throw AgentRuntimeError.noNemotronModel
         }
         selectedModelID = selected
+        selectedRoute = decision.route
+        debugLog("[ModelRouter] route=\(decision.route.rawValue) reason=\(decision.reason) model=\(selected)")
         return selected
-    }
-
-    private nonisolated func modelPreference(_ lhs: String, _ rhs: String) -> Bool {
-        func score(_ id: String) -> Int {
-            let value = id.lowercased()
-            let preferences = ["ultra", "super", "253b", "70b", "49b", "32b", "12b", "9b", "4b", "nano"]
-            return preferences.firstIndex(where: value.contains).map { preferences.count - $0 } ?? 0
-        }
-        let leftScore = score(lhs)
-        let rightScore = score(rhs)
-        return leftScore == rightScore ? lhs > rhs : leftScore > rightScore
     }
 
     private func execute(

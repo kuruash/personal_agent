@@ -18,6 +18,11 @@ struct ConversationView: View {
                                 .padding(.top, messageSpacing(at: index))
                         }
 
+                        if let action = agent.pendingAction {
+                            PendingActionCard(action: action, onCancel: { agent.cancelPendingAction(action) }, onApprove: { agent.approvePendingAction(action) })
+                                .padding(.top, AppSpacing.large)
+                        }
+
                         if agent.isWorking {
                             workingIndicator
                                 .id("agent-working")
@@ -48,7 +53,7 @@ struct ConversationView: View {
                 text: $prompt,
                 attachments: $attachments,
                 isWorking: agent.isWorking,
-                onSubmit: agent.submit
+                onSubmit: { agent.submit($0, attachments: attachments) }
             )
                 .frame(maxWidth: 760)
                 .padding(.horizontal, AppSpacing.xxLarge)

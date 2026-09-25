@@ -14,6 +14,8 @@ final class ConversationStore: ObservableObject {
     let databaseURL: URL?
     let profileStore: ProfileStore?
     let memoryStore: MemoryStore?
+    let calendarStore: CalendarStore?
+    let pendingActionStore: PendingActionStore?
     private let repository: ConversationRepository?
     private let fileManager: FileManager
 
@@ -26,6 +28,8 @@ final class ConversationStore: ObservableObject {
         let profileRepository = ProfileRepository(database: database)
         profileStore = ProfileStore(repository: profileRepository)
         memoryStore = MemoryStore(database: database)
+        calendarStore = CalendarStore()
+        pendingActionStore = PendingActionStore()
         databaseURL = database.databaseURL
         self.fileManager = fileManager
         let migrationError = migrateLegacyJSONIfNeeded(
@@ -48,6 +52,8 @@ final class ConversationStore: ObservableObject {
         repository = nil
         profileStore = nil
         memoryStore = nil
+        calendarStore = nil
+        pendingActionStore = nil
         databaseURL = nil
         self.fileManager = fileManager
         lastErrorDescription = "Conversation storage could not be initialized."

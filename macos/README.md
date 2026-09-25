@@ -43,11 +43,13 @@ Implemented:
 - Local SQLite conversation persistence, Recent conversations, rename/delete, and restored model protocol context.
 - Structured local Personal Profile storage with on-demand agent retrieval and deterministic search.
 - Optional LangSmith execution tracing with privacy-focused metadata and failure isolation.
+- Read-only native macOS Calendar access through EventKit, requested only from the Calendar integration screen and retrieved on demand by bounded agent tools.
 
 Not implemented in the current release:
 
 - File creation, modification, deletion, moving, or renaming.
-- Terminal, browser, email, calendar, Git, or screen-control tools.
+- Terminal, browser, email, Git, or screen-control tools.
+- Calendar writes, event creation, modification, deletion, RSVP, invitations, calendar changes, or background calendar monitoring.
 - Personal memory, entities, relationships, embeddings, or semantic search.
 - Cloud conversation synchronization or user accounts.
 
@@ -118,6 +120,7 @@ Imports validate required fields and stable IDs, then upsert records so repeated
 - Conversation data is stored locally in the app's sandbox-compatible Application Support directory, not in an approved document folder.
 - Real profile seeds remain local and ignored; the repository contains only a fictional schema example.
 - Optional LangSmith tracing is disabled when its configuration is absent or false. Its default policy records execution metadata rather than raw document contents or raw tool results.
+- Calendar traces contain only safe aggregate metadata (operation, range duration, result count, limits, success, and authorization reason); never event fields, searches, raw times, or raw results.
 - Tracing failures never fail the agent request.
 
 Do not commit API keys, Xcode user schemes containing credentials, local databases, conversation backups, or user data.
@@ -152,6 +155,7 @@ Do not commit API keys, Xcode user schemes containing credentials, local databas
 
 6. Build and run the `PersonalAI` target.
 7. In Personal AI, open **Settings -> Files** and approve a folder before asking the agent to inspect it.
+8. To use Calendar, select **Calendar** in the sidebar and click **Connect Calendar**. Grant the macOS prompt when it appears. The connection is read-only; events are only fetched after a relevant conversational request.
 
 Environment values entered in Xcode are developer-local configuration. Never place real values in a shared scheme or commit them to Git.
 

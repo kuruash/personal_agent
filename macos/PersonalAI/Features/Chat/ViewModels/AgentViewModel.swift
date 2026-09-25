@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import UniformTypeIdentifiers
 
 @MainActor
 final class AgentViewModel: ObservableObject {
@@ -11,6 +12,7 @@ final class AgentViewModel: ObservableObject {
     @Published private(set) var approvedDirectories: [ApprovedDirectory] = []
     @Published private(set) var selectedModelID: String?
     @Published private(set) var currentConversationID: UUID?
+    @Published private(set) var pendingAction: PendingAction?
 
     let providerName = "Nebius Token Factory"
     let conversationStore: ConversationStore
@@ -19,6 +21,7 @@ final class AgentViewModel: ObservableObject {
     private var runtime: AgentRuntime?
     private var currentModelHistory: [ChatMessage] = []
     private var policyObservation: AnyCancellable?
+    private var pendingActionObservation: AnyCancellable?
     private var sessionID = UUID()
 
     init(conversationStore: ConversationStore) {
@@ -30,9 +33,14 @@ final class AgentViewModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.approvedDirectories = self?.fileAccessPolicy.userApprovedDirectories ?? []
             }
+        if let pendingStore = conversationStore.pendingActionStore {
+            pendingActionObservation = pendingStore.$pendingAction
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.pendingAction = $0 }
+        }
     }
 
-    func submit(_ message: String) {
+    func submit(_ message: String, attachments: [ChatAttachment] = []) {
         guard !isWorking else { return }
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else { return }
@@ -54,7 +62,10 @@ final class AgentViewModel: ObservableObject {
             do {
                 let runtime = try makeRuntimeIfNeeded()
                 let viewModel = self
-                let answer = try await runtime.send(userMessage: trimmedMessage) { state in
+                let hasVisualInput = attachments.contains { attachment in
+                    attachment.contentTypeIdentifier.flatMap(UTType.init)?.conforms(to: .image) == true
+                }
+                let answer = try await runtime.send(userMessage: trimmedMessage, hasVisualInput: hasVisualInput) { state in
                     await viewModel.updateState(state, for: submittedSessionID)
                 }
                 guard sessionID == submittedSessionID else { return }
@@ -171,6 +182,25 @@ final class AgentViewModel: ObservableObject {
         }
     }
 
+    func cancelPendingAction(_ action: PendingAction) { conversationStore.pendingActionStore?.cancel(id: action.id) }
+
+    func approvePendingAction(_ action: PendingAction) {
+        guard let action = conversationStore.pendingActionStore?.takeForApproval(id: action.id), let calendarStore = conversationStore.calendarStore else { return }
+        do {
+            let event = try calendarStore.perform(action.calendarMutation)
+            let response: String
+            switch (action.calendarMutation, event) {
+            case (.create(let draft), let created?): response = "Created **\(created.title)** for \(CalendarPresentation.dateRange(start: draft.startDate, end: draft.endDate, allDay: draft.isAllDay))."
+            case (.update, let updated?): response = "Updated **\(updated.title)** to \(CalendarPresentation.dateRange(start: updated.startDate, end: updated.endDate, allDay: updated.isAllDay))."
+            case (.delete, _): response = "Deleted the selected calendar event."
+            default: response = "Calendar change completed."
+            }
+            messages.append(ConversationMessage(role: .assistant, content: response)); persistCurrentConversation()
+        } catch {
+            messages.append(ConversationMessage(role: .assistant, content: "I couldn't complete that calendar change. Please confirm the event and Calendar access, then try again.")); persistCurrentConversation()
+        }
+    }
+
     private func makeRuntimeIfNeeded() throws -> AgentRuntime {
         if let runtime { return runtime }
         let persistedHistory = currentModelHistory
@@ -184,7 +214,9 @@ final class AgentViewModel: ObservableObject {
             restoredHistory: restoredHistory,
             conversationID: currentConversationID,
             profileStore: conversationStore.profileStore,
-            memoryStore: conversationStore.memoryStore
+            memoryStore: conversationStore.memoryStore,
+            calendarStore: conversationStore.calendarStore,
+            pendingActionStore: conversationStore.pendingActionStore
         )
         runtime = newRuntime
         return newRuntime

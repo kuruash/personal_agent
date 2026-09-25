@@ -23,7 +23,7 @@ struct EmptyChatView: View {
                 text: $prompt,
                 attachments: $attachments,
                 isWorking: agent.isWorking,
-                onSubmit: agent.submit
+                onSubmit: { agent.submit($0, attachments: attachments) }
             )
 
             Spacer(minLength: AppSpacing.xxLarge)

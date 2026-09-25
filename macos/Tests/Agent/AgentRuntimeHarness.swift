@@ -13,13 +13,13 @@ private actor MockNebiusClient: NebiusServing {
         [
             AvailableModel(id: "another-provider/model"),
             AvailableModel(id: "nvidia/other-model"),
-            AvailableModel(id: "nvidia/Nemotron-Harness-Model")
+            AvailableModel(id: "nvidia/Nemotron-3.5-Lightning-30B-A3B")
         ]
     }
 
     func createChatCompletion(_ request: ChatCompletionRequest) async throws -> ChatCompletionResponse {
         requestCount += 1
-        guard request.model == "nvidia/Nemotron-Harness-Model" else {
+        guard request.model == "nvidia/Nemotron-3.5-Lightning-30B-A3B" else {
             throw HarnessError.assertion("Runtime selected the wrong model")
         }
         guard request.tools?.contains(where: { $0.function.name == "get_current_project" }) == true else {

@@ -23,7 +23,7 @@ private actor MemoryToolCallingClient: NebiusServing {
     private var requestCount = 0
 
     func fetchModels() async throws -> [AvailableModel] {
-        [AvailableModel(id: "nvidia/Nemotron-Memory-Test")]
+        [AvailableModel(id: "nvidia/Nemotron-3.5-Lightning-30B-A3B")]
     }
 
     func createChatCompletion(_ request: ChatCompletionRequest) async throws -> ChatCompletionResponse {
